@@ -1,25 +1,29 @@
 # Projet Microservices avec Docker Compose
 
 ## Description
-Projet pédagogique illustrant l'architecture microservices avec deux services REST :
-- **CustomerService** : Gestion des clients (port 8081)
-- **RentalService** : Gestion des locations de voitures (port 8080)
+Projet pédagogique illustrant l'architecture microservices avec trois services REST :
+- **CustomerService** : Gestion des clients (port 8081) - Java/Spring Boot
+- **RentalService** : Gestion des locations de voitures (port 8080) - Java/Spring Boot
+- **NameService** : Service de gestion de noms (port 8082) - PHP
 
-Ce projet démontre la communication inter-services et l'orchestration avec Docker Compose.
+Ce projet démontre la communication inter-services et l'orchestration avec Docker Compose, ainsi que la polyglossie (utilisation de plusieurs langages de programmation).
 
 ## Structure du projet
 ```
 docker-compose/
-├── CustomerService/         # Microservice de gestion des clients
+├── CustomerService/         # Microservice de gestion des clients (Java/Spring Boot)
 │   ├── src/
 │   ├── build.gradle
 │   ├── Dockerfile
 │   └── ...
-├── RentalService/          # Microservice de gestion des locations
+├── RentalService/          # Microservice de gestion des locations (Java/Spring Boot)
 │   ├── src/
 │   ├── build.gradle
 │   ├── Dockerfile
 │   └── ...
+├── NameService/            # Microservice de gestion de noms (PHP)
+│   ├── index.php
+│   └── Dockerfile
 └── docker-compose.yml      # Configuration d'orchestration Docker
 ```
 
@@ -163,8 +167,8 @@ docker-compose up --build
 2. Construit les images Docker pour chaque service (grâce à `--build`)
 3. Crée le réseau `microservices-network`
 4. Démarre `customer-service` en premier
-5. Puis démarre `rental-service`
-6. Les logs des deux services s'affichent dans le terminal
+5. Puis démarre `rental-service` et `name-service`
+6. Les logs de tous les services s'affichent dans le terminal
 
 **Options utiles :**
 ```bash
@@ -193,6 +197,49 @@ docker-compose logs
 
 ### 3. Tester les endpoints
 
+#### Service PHP - NameService
+
+Le **NameService** est un service PHP simple qui démontre la polyglossie dans une architecture microservices.
+
+**Fonctionnalités :**
+- **GET** : Retourne le prénom par défaut "Armel"
+- **POST** : Accepte un nom dans le body de la requête et le retourne
+
+**Exemple d'utilisation GET :**
+```bash
+# Depuis le terminal
+curl http://localhost:8082/
+
+# Depuis le navigateur
+# Ouvrir : http://localhost:8082/
+# Affiche : Armel
+```
+
+**Exemple d'utilisation POST :**
+```bash
+# Avec JSON
+curl -X POST http://localhost:8082/ \
+  -H "Content-Type: application/json" \
+  -d '{"nom": "Jean"}'
+
+# Réponse : Nom reçu : Jean
+
+# Avec formulaire HTML (application/x-www-form-urlencoded)
+curl -X POST http://localhost:8082/ \
+  -d "nom=Marie"
+
+# Réponse : Nom reçu : Marie
+```
+
+**Code PHP du service :**
+Le service utilise une simple logique PHP pour gérer les requêtes GET et POST :
+- Détection de la méthode HTTP via `$_SERVER['REQUEST_METHOD']`
+- Parsing du JSON pour les requêtes POST
+- Support des données de formulaire HTML
+- Protection XSS avec `htmlspecialchars()`
+
+### 4. Tester les autres endpoints
+
 **CustomerService (port 8081) :**
 ```bash
 # Tous les clients
@@ -209,6 +256,22 @@ curl http://localhost:8080/cars
 
 # Communication inter-services : RentalService appelle CustomerService
 curl http://localhost:8080/customer/Jean%20Dupont
+```
+
+**NameService (port 8082) - PHP :**
+```bash
+# GET : Retourner le prénom par défaut
+curl http://localhost:8082/
+# Ou simplement ouvrir dans le navigateur : http://localhost:8082/
+
+# POST : Envoyer un nom
+curl -X POST http://localhost:8082/ \
+  -H "Content-Type: application/json" \
+  -d '{"nom": "Jean"}'
+
+# POST avec formulaire HTML
+curl -X POST http://localhost:8082/ \
+  -d "nom=Marie"
 ```
 
 ### Exemple de communication inter-services
@@ -431,27 +494,29 @@ docker-compose build --no-cache
 ## 📊 Architecture du projet
 
 ```
-┌──────────────────────────────────────────────────────┐
-│                    Navigateur                         │
-│              http://localhost:8080/8081              │
-└────────────┬─────────────────────┬───────────────────┘
-             │                     │
-             │                     │
-    ┌────────▼─────────┐  ┌───────▼──────────┐
-    │ RentalService    │  │ CustomerService   │
-    │ (port 8080)      │  │ (port 8081)       │
-    │                  │  │                   │
-    │ - GET /cars      │  │ - GET /customers  │
-    │ - GET /customer/ │──┤ - GET /customers/ │
-    │   {name}         │  │   {name}/address  │
-    └──────────────────┘  └───────────────────┘
-            │                      │
-            └──────────┬───────────┘
-                       │
-              ┌────────▼─────────┐
-              │  Docker Network   │
-              │ microservices-net │
-              └───────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                    Navigateur / Client                        │
+│         http://localhost:8080/8081/8082                      │
+└──────┬──────────────────┬──────────────────┬─────────────────┘
+       │                  │                  │
+       │                  │                  │
+┌──────▼──────┐  ┌────────▼─────────┐  ┌─────▼──────────┐
+│RentalService│  │ CustomerService  │  │  NameService   │
+│ (port 8080) │  │  (port 8081)     │  │  (port 8082)   │
+│             │  │                  │  │                │
+│ Java/Spring │  │  Java/Spring     │  │     PHP        │
+│             │  │                  │  │                │
+│ - GET /cars │  │ - GET /customers │  │ - GET /        │
+│ - GET       │──┤ - GET /customers/│  │ - POST /       │
+│   /customer/│  │   {name}/address │  │   (avec nom)   │
+└─────────────┘  └──────────────────┘  └────────────────┘
+       │                  │                  │
+       └──────────────────┴──────────────────┘
+                         │
+              ┌──────────▼──────────┐
+              │   Docker Network     │
+              │ microservices-network│
+              └──────────────────────┘
 ```
 
 ---
@@ -464,6 +529,8 @@ docker-compose build --no-cache
 4. **depends_on** contrôle l'ordre de démarrage
 5. **Les ports sont mappés** entre la machine hôte et les conteneurs
 6. **Un seul fichier YAML** remplace de multiples commandes Docker
+7. **Polyglossie** : Docker permet d'utiliser différents langages (Java, PHP, etc.) dans la même architecture
+8. **Chaque service peut avoir son propre Dockerfile** adapté à son langage et ses besoins
 
 ---
 
@@ -477,6 +544,7 @@ docker-compose logs
 # Vérifier que les ports ne sont pas déjà utilisés
 lsof -i :8080
 lsof -i :8081
+lsof -i :8082
 ```
 
 ### Communication entre services impossible
