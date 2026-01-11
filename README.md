@@ -1,504 +1,53 @@
-# Projet Microservices avec Docker Compose
+# Projet Microservices : Docker & Kubernetes
 
-## Description
-Projet pédagogique illustrant l'architecture microservices avec trois services REST :
+![Docker](https://img.shields.io/badge/Docker-20.10+-blue.svg)
+![Kubernetes](https://img.shields.io/badge/Kubernetes-1.28+-326CE5.svg)
+![Java](https://img.shields.io/badge/Java-21-orange.svg)
+![PHP](https://img.shields.io/badge/PHP-8.2-purple.svg)
+
+## 📋 Table des matières
+
+- [Description du projet](#description-du-projet)
+- [Architecture](#architecture)
+- [Galerie de démonstration](#-galerie-de-démonstration)
+- [Prérequis](#prérequis)
+- [Déploiement avec Docker Compose](#-déploiement-avec-docker-compose)
+- [Déploiement avec Kubernetes](#-déploiement-avec-kubernetes)
+- [Minikube](#-minikube)
+- [Commandes essentielles](#-commandes-essentielles)
+- [Dépannage](#-dépannage)
+- [Screenshots suggérés](#-screenshots-suggérés)
+
+---
+
+## Description du projet
+
+Ce projet illustre une **architecture microservices** avec trois services REST déployés via Docker et Kubernetes :
+
 - **CustomerService** : Gestion des clients (port 8081) - Java/Spring Boot
-- **RentalService** : Gestion des locations de voitures (port 8080) - Java/Spring Boot
+- **RentalService** : Gestion des locations de voitures (port 8080) - Java/Spring Boot  
 - **NameService** : Service de gestion de noms (port 8082) - PHP
 
-Ce projet démontre la communication inter-services et l'orchestration avec Docker Compose, ainsi que la polyglossie (utilisation de plusieurs langages de programmation).
+### Fonctionnalités démontrées
 
-## Structure du projet
-```
-docker-compose/
-├── CustomerService/         # Microservice de gestion des clients (Java/Spring Boot)
-│   ├── src/
-│   ├── build.gradle
-│   ├── Dockerfile
-│   └── ...
-├── RentalService/          # Microservice de gestion des locations (Java/Spring Boot)
-│   ├── src/
-│   ├── build.gradle
-│   ├── Dockerfile
-│   └── ...
-├── NameService/            # Microservice de gestion de noms (PHP)
-│   ├── index.php
-│   └── Dockerfile
-└── docker-compose.yml      # Configuration d'orchestration Docker
-```
-
-## Prérequis
-- Docker (version 20.10+)
-- Docker Compose (version 2.0+)
-
-Vérifiez vos installations :
-```bash
-docker --version
-docker-compose --version
-```
+✅ **Polyglossie** : Utilisation de plusieurs langages (Java, PHP)  
+✅ **Orchestration Docker** : Déploiement avec Docker Compose  
+✅ **Orchestration Kubernetes** : Déploiement avec Kubernetes  
+✅ **Communication inter-services** : Services qui communiquent entre eux  
+✅ **Réseau isolé** : Réseau Docker/Kubernetes pour la communication  
+✅ **Ingress** : Exposition des services via un Ingress Controller
 
 ---
 
-## 📚 Comprendre Docker Compose
+## Architecture
 
-### Qu'est-ce que Docker Compose ?
-
-**Docker Compose** est un outil qui permet de définir et d'exécuter des applications multi-conteneurs. Au lieu de gérer chaque conteneur individuellement avec des commandes `docker run`, Docker Compose utilise un fichier YAML pour configurer tous les services de votre application.
-
-### Pourquoi utiliser Docker Compose ?
-
-**Sans Docker Compose**, vous devriez :
-1. Créer un réseau Docker manuellement
-2. Lancer chaque conteneur avec de longues commandes
-3. Gérer les dépendances entre services manuellement
-4. Configurer les variables d'environnement pour chaque conteneur
-
-**Avec Docker Compose**, tout cela est défini dans un seul fichier `docker-compose.yml` !
-
-### Anatomie du fichier docker-compose.yml
-
-Analysons notre fichier `docker-compose.yml` section par section :
-
-```yaml
-version: '3.8'  # Version de la syntaxe Docker Compose
-```
-La version définit quelles fonctionnalités sont disponibles.
-
-#### 1. Définition des services
-
-```yaml
-services:
-  customer-service:        # Nom du service (utilisé comme DNS dans le réseau)
-    build:
-      context: ./CustomerService    # Dossier contenant le Dockerfile
-      dockerfile: Dockerfile        # Nom du Dockerfile à utiliser
-    container_name: customer-service  # Nom du conteneur créé
-    ports:
-      - "8081:8081"        # Mapping: port_hôte:port_conteneur
-```
-
-**Explications clés :**
-- **Nom du service** (`customer-service`) : sert de nom DNS pour la communication inter-conteneurs
-- **build.context** : indique où trouver le code source et le Dockerfile
-- **ports** : expose le service sur votre machine locale
-  - `8081:8081` signifie : le port 8081 du conteneur est accessible via le port 8081 de votre machine
-
-#### 2. Variables d'environnement
-
-```yaml
-    environment:
-      - SPRING_APPLICATION_NAME=customer-service
-      - SERVER_PORT=8081
-      - CUSTOMER_SERVICE_URL=http://customer-service:8081
-```
-
-**Pourquoi des variables d'environnement ?**
-- Elles permettent de configurer l'application sans modifier le code
-- Elles sont injectées dans l'application Spring Boot au démarrage
-- Notez l'URL : `http://customer-service:8081` utilise le **nom du service** comme hostname
-
-#### 3. Réseau Docker
-
-```yaml
-networks:
-  microservices-network:
-    driver: bridge
-```
-
-**Le réseau virtuel** :
-- Crée un réseau isolé pour vos conteneurs
-- Les conteneurs peuvent se parler en utilisant leurs noms de service
-- Exemple : `rental-service` peut joindre `customer-service` via `http://customer-service:8081`
-- Le `driver: bridge` crée un réseau local sur votre machine
-
-**Schéma de communication :**
-```
-┌─────────────────────────────────────────────────────┐
-│          microservices-network (bridge)             │
-│                                                       │
-│  ┌─────────────────┐      ┌─────────────────┐      │
-│  │ customer-service│◄─────┤ rental-service  │      │
-│  │   port 8081     │      │   port 8080     │      │
-│  └────────┬────────┘      └────────┬────────┘      │
-└───────────┼──────────────────────────┼──────────────┘
-            │                          │
-         (8081)                     (8080)
-            │                          │
-       ┌────▼──────────────────────────▼────┐
-       │      Votre machine (localhost)      │
-       └─────────────────────────────────────┘
-```
-
-#### 4. Dépendances entre services
-
-```yaml
-    depends_on:
-      - customer-service
-```
-
-**Ordre de démarrage** :
-- `depends_on` garantit que `customer-service` démarre **avant** `rental-service`
-- Important car `rental-service` a besoin de communiquer avec `customer-service`
-
-#### 5. Politique de redémarrage
-
-```yaml
-    restart: unless-stopped
-```
-
-**Options de redémarrage :**
-- `no` : ne jamais redémarrer (défaut)
-- `always` : toujours redémarrer si le conteneur s'arrête
-- `on-failure` : redémarrer uniquement en cas d'erreur
-- `unless-stopped` : redémarrer sauf si vous l'arrêtez manuellement
-
----
-
-## 🚀 Démarrage du projet
-
-### 1. Construction et démarrage des services
-
-```bash
-docker-compose up --build
-```
-
-**Que se passe-t-il ?**
-1. Docker lit le fichier `docker-compose.yml`
-2. Construit les images Docker pour chaque service (grâce à `--build`)
-3. Crée le réseau `microservices-network`
-4. Démarre `customer-service` en premier
-5. Puis démarre `rental-service` et `name-service`
-6. Les logs de tous les services s'affichent dans le terminal
-
-**Options utiles :**
-```bash
-# Démarrer en arrière-plan (mode détaché)
-docker-compose up -d
-
-# Reconstruire les images avant de démarrer
-docker-compose up --build
-
-# Voir les logs en temps réel
-docker-compose logs -f
-
-# Voir les logs d'un seul service
-docker-compose logs -f rental-service
-```
-
-### 2. Vérifier que les services fonctionnent
-
-```bash
-# Lister les conteneurs en cours d'exécution
-docker-compose ps
-
-# Vérifier les logs
-docker-compose logs
-```
-
-### 3. Tester les endpoints
-
-#### Service PHP - NameService
-
-Le **NameService** est un service PHP simple qui démontre la polyglossie dans une architecture microservices.
-
-**Fonctionnalités :**
-- **GET** : Retourne le prénom par défaut "Armel"
-- **POST** : Accepte un nom dans le body de la requête et le retourne
-
-**Exemple d'utilisation GET :**
-```bash
-# Depuis le terminal
-curl http://localhost:8082/
-
-# Depuis le navigateur
-# Ouvrir : http://localhost:8082/
-# Affiche : Armel
-```
-
-**Exemple d'utilisation POST :**
-```bash
-# Avec JSON
-curl -X POST http://localhost:8082/ \
-  -H "Content-Type: application/json" \
-  -d '{"nom": "Jean"}'
-
-# Réponse : Nom reçu : Jean
-
-# Avec formulaire HTML (application/x-www-form-urlencoded)
-curl -X POST http://localhost:8082/ \
-  -d "nom=Marie"
-
-# Réponse : Nom reçu : Marie
-```
-
-**Code PHP du service :**
-Le service utilise une simple logique PHP pour gérer les requêtes GET et POST :
-- Détection de la méthode HTTP via `$_SERVER['REQUEST_METHOD']`
-- Parsing du JSON pour les requêtes POST
-- Support des données de formulaire HTML
-- Protection XSS avec `htmlspecialchars()`
-
-### 4. Tester les autres endpoints
-
-**CustomerService (port 8081) :**
-```bash
-# Tous les clients
-curl http://localhost:8081/customers
-
-# Adresse d'un client spécifique
-curl http://localhost:8081/customers/Jean%20Dupont/address
-```
-
-**RentalService (port 8080) :**
-```bash
-# Toutes les voitures
-curl http://localhost:8080/cars
-
-# Communication inter-services : RentalService appelle CustomerService
-curl http://localhost:8080/customer/Jean%20Dupont
-```
-
-**NameService (port 8082) - PHP :**
-```bash
-# GET : Retourner le prénom par défaut
-curl http://localhost:8082/
-# Ou simplement ouvrir dans le navigateur : http://localhost:8082/
-
-# POST : Envoyer un nom
-curl -X POST http://localhost:8082/ \
-  -H "Content-Type: application/json" \
-  -d '{"nom": "Jean"}'
-
-# POST avec formulaire HTML
-curl -X POST http://localhost:8082/ \
-  -d "nom=Marie"
-```
-
-### Exemple de communication inter-services
-
-Lorsque vous appelez :
-```
-http://localhost:8080/customer/Jean%20Dupont
-```
-
-**Voici ce qui se passe :**
-1. Votre navigateur envoie une requête à `rental-service`
-2. `rental-service` exécute la méthode `bonjour()`
-3. Cette méthode fait une requête HTTP GET vers :
-   ```
-   http://customer-service:8081/customers/Jean%20Dupont/address
-   ```
-4. `customer-service` répond avec l'adresse du client
-5. `rental-service` retourne cette adresse au navigateur
-
-**Point important :** Le `rental-service` utilise `http://customer-service:8081` (nom du service) et non `http://localhost:8081` car les conteneurs communiquent via le réseau Docker interne.
-
-### Analyse du code : La méthode bonjour()
-
-Examinons le code de la méthode `bonjour()` dans `RentalController.java` :
-
-```java
-@GetMapping("/customer/{name}")
-public String bonjour(@PathVariable String name) {
-    RestTemplate restTemplate = new RestTemplate();
-    String url = customerServiceUrl + "/customers/" + name + "/address";
-    logger.info("Requesting URL: " + url);
-    String response = restTemplate.getForObject(url, String.class);
-    return response;
-}
-```
-
-**Décomposition ligne par ligne :**
-
-1. **`@GetMapping("/customer/{name}")`**
-   - Définit que cette méthode répond aux requêtes HTTP GET sur `/customer/{name}`
-   - `{name}` est une variable de chemin qui sera extraite de l'URL
-
-2. **`@PathVariable String name`**
-   - Extrait la valeur de `{name}` depuis l'URL et l'injecte dans le paramètre `name`
-   - Exemple : `/customer/Jean%20Dupont` → `name = "Jean Dupont"`
-
-3. **`RestTemplate restTemplate = new RestTemplate()`**
-   - Crée une instance de `RestTemplate`, un client HTTP fourni par Spring
-   - `RestTemplate` permet d'effectuer des requêtes HTTP vers d'autres services
-
-4. **`String url = customerServiceUrl + "/customers/" + name + "/address"`**
-   - Construit l'URL complète pour appeler le CustomerService
-   - `customerServiceUrl` est injecté depuis `application.properties` (`${customer.service.url}`)
-   - En Docker : `http://customer-service:8081/customers/Jean Dupont/address`
-   - En local : `http://localhost:8081/customers/Jean Dupont/address`
-
-5. **`restTemplate.getForObject(url, String.class)`**
-   - **Envoie une requête HTTP GET** vers l'URL construite
-   - **Premier paramètre** : L'URL cible
-   - **Deuxième paramètre** : Le type de la réponse attendue (`String.class`)
-   - `getForObject` effectue la requête de manière **synchrone** (bloquante)
-   - La méthode attend la réponse avant de continuer
-
-6. **`return response`**
-   - Retourne la réponse reçue du CustomerService au client HTTP initial
-
-**Alternatives à RestTemplate :**
-
-`RestTemplate` est un client HTTP classique mais d'autres options existent :
-
-```java
-// Avec WebClient (réactif, recommandé pour les nouvelles applications)
-WebClient webClient = WebClient.create(customerServiceUrl);
-String response = webClient.get()
-    .uri("/customers/{name}/address", name)
-    .retrieve()
-    .bodyToMono(String.class)
-    .block();
-
-// Avec Feign (client HTTP déclaratif)
-@FeignClient(name = "customer-service", url = "${customer.service.url}")
-public interface CustomerClient {
-    @GetMapping("/customers/{name}/address")
-    String getCustomerAddress(@PathVariable String name);
-}
-```
-
-**Gestion des erreurs :**
-
-La méthode actuelle ne gère pas les erreurs. En production, il faudrait ajouter :
-
-```java
-@GetMapping("/customer/{name}")
-public String bonjour(@PathVariable String name) {
-    try {
-        RestTemplate restTemplate = new RestTemplate();
-        String url = customerServiceUrl + "/customers/" + name + "/address";
-        logger.info("Requesting URL: " + url);
-        String response = restTemplate.getForObject(url, String.class);
-        return response;
-    } catch (HttpClientErrorException e) {
-        // Erreur 4xx (client)
-        logger.error("Client error: " + e.getStatusCode());
-        return "Error: Customer not found";
-    } catch (HttpServerErrorException e) {
-        // Erreur 5xx (serveur)
-        logger.error("Server error: " + e.getStatusCode());
-        return "Error: Service unavailable";
-    } catch (ResourceAccessException e) {
-        // Problème de connexion réseau
-        logger.error("Connection error: " + e.getMessage());
-        return "Error: Cannot connect to customer service";
-    }
-}
-```
-
-**Timeout et configuration :**
-
-Par défaut, `RestTemplate` n'a pas de timeout. Il est recommandé de le configurer :
-
-```java
-@Bean
-public RestTemplate restTemplate() {
-    SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-    factory.setConnectTimeout(3000);  // 3 secondes pour établir la connexion
-    factory.setReadTimeout(3000);     // 3 secondes pour lire la réponse
-    return new RestTemplate(factory);
-}
-```
-
----
-
-## 🛠️ Commandes Docker Compose essentielles
-
-### Gestion du cycle de vie
-
-```bash
-# Démarrer les services
-docker-compose up
-
-# Démarrer en arrière-plan
-docker-compose up -d
-
-# Arrêter les services (conteneurs restent créés)
-docker-compose stop
-
-# Redémarrer les services
-docker-compose restart
-
-# Arrêter et supprimer les conteneurs
-docker-compose down
-
-# Tout supprimer (conteneurs, réseaux, volumes)
-docker-compose down -v
-```
-
-### Surveillance et débogage
-
-```bash
-# Afficher les conteneurs actifs
-docker-compose ps
-
-# Voir les logs
-docker-compose logs
-
-# Suivre les logs en temps réel
-docker-compose logs -f
-
-# Logs d'un service spécifique
-docker-compose logs -f rental-service
-
-# Exécuter une commande dans un conteneur
-docker-compose exec rental-service bash
-
-# Voir les ressources utilisées
-docker stats
-```
-
-### Construction et mise à jour
-
-```bash
-# Reconstruire les images
-docker-compose build
-
-# Reconstruire et redémarrer
-docker-compose up --build
-
-# Reconstruire sans cache
-docker-compose build --no-cache
-```
-
----
-
-## 🔧 Exercices pratiques
-
-### Exercice 1 : Observer la communication réseau
-1. Démarrez les services avec `docker-compose up`
-2. Dans un autre terminal, accédez au conteneur rental-service :
-   ```bash
-   docker-compose exec rental-service bash
-   ```
-3. Testez la résolution DNS :
-   ```bash
-   ping customer-service
-   curl http://customer-service:8081/customers
-   ```
-
-### Exercice 2 : Modifier une variable d'environnement
-1. Dans `docker-compose.yml`, changez `CUSTOMER_SERVICE_URL`
-2. Redémarrez : `docker-compose up --build`
-3. Observez l'impact sur la communication
-
-### Exercice 3 : Analyser les logs
-1. Générez du trafic en appelant les endpoints
-2. Observez les logs : `docker-compose logs -f`
-3. Identifiez les requêtes entre services
-
----
-
-## 📊 Architecture du projet
+### Architecture Docker Compose
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │                    Navigateur / Client                        │
 │         http://localhost:8080/8081/8082                      │
 └──────┬──────────────────┬──────────────────┬─────────────────┘
-       │                  │                  │
        │                  │                  │
 ┌──────▼──────┐  ┌────────▼─────────┐  ┌─────▼──────────┐
 │RentalService│  │ CustomerService  │  │  NameService   │
@@ -508,7 +57,7 @@ docker-compose build --no-cache
 │             │  │                  │  │                │
 │ - GET /cars │  │ - GET /customers │  │ - GET /        │
 │ - GET       │──┤ - GET /customers/│  │ - POST /       │
-│   /customer/│  │   {name}/address │  │   (avec nom)   │
+│   /customer/│  │   {name}/address │  │                │
 └─────────────┘  └──────────────────┘  └────────────────┘
        │                  │                  │
        └──────────────────┴──────────────────┘
@@ -519,63 +68,718 @@ docker-compose build --no-cache
               └──────────────────────┘
 ```
 
+### Architecture Kubernetes
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Ingress Controller                      │
+│                     (Nginx Ingress)                          │
+└──────────────┬──────────────────┬──────────────────┬────────┘
+               │                  │                  │
+      ┌────────▼─────────┐ ┌─────▼──────┐  ┌───────▼────────┐
+      │  Rental Service  │ │ Customer   │  │  Name Service  │
+      │   Deployment     │ │ Service    │  │   Deployment   │
+      │   + Service      │ │ Deployment │  │   + Service    │
+      │                  │ │ + Service  │  │                │
+      │   ┌──────────┐   │ │            │  │   ┌──────────┐ │
+      │   │   Pod    │   │ │  ┌──────┐  │  │   │   Pod    │ │
+      │   │  :8080   │   │ │  │ Pod  │  │  │   │   :80    │ │
+      │   └──────────┘   │ │  │ :8081│  │  │   └──────────┘ │
+      └──────────────────┘ │  └──────┘  │  └────────────────┘
+                           └────────────┘
+                                  │
+                         ┌────────▼─────────┐
+                         │  Kubernetes      │
+                         │  DNS Service     │
+                         └──────────────────┘
+```
+
 ---
 
-## 🎓 Points clés à retenir
+## 📸 Galerie de démonstration
 
-1. **Docker Compose simplifie l'orchestration** de plusieurs conteneurs
-2. **Les services communiquent via leurs noms** dans le réseau Docker
-3. **Les variables d'environnement** permettent de configurer sans modifier le code
-4. **depends_on** contrôle l'ordre de démarrage
-5. **Les ports sont mappés** entre la machine hôte et les conteneurs
-6. **Un seul fichier YAML** remplace de multiples commandes Docker
-7. **Polyglossie** : Docker permet d'utiliser différents langages (Java, PHP, etc.) dans la même architecture
-8. **Chaque service peut avoir son propre Dockerfile** adapté à son langage et ses besoins
+Cette section présente des captures d'écran illustrant le fonctionnement du projet.
+
+### Figure 1 : Vue d'ensemble Docker Compose
+
+![Docker Compose - Services actifs](public/figure1.png)
+
+*Capture montrant les services Docker Compose en cours d'exécution avec `docker-compose ps`*
+
+---
+
+### Figure 2 : Déploiement Kubernetes
+
+![Kubernetes - Déploiement des services](public/fiigure2.png)
+
+*Vue des deployments et pods Kubernetes pour les trois microservices*
+
+---
+
+### Figure 3 : Tests fonctionnels
+
+![Tests des endpoints](public/figure%203.png)
+
+*Tests des différents endpoints des services (CustomerService, RentalService, NameService)*
+
+---
+
+### Figure 3.1 : Communication inter-services
+
+![Communication inter-services](public/figure3.1.png)
+
+*Démonstration de la communication entre les services, notamment l'appel du RentalService vers le CustomerService*
+
+---
+
+### Figure 4 : Kubernetes - Vue détaillée
+
+![Kubernetes - Détails](public/figure4.png)
+
+*vue d'ensemble sur tous les services actifs*
+---
+
+### Services
+
+![Tests API](public/figure5.png)
+
+*Tests des endpoints avec les réponses des services*
+
+---
+
+### Pods
+
+![Monitoring](public/figure6.png)
+
+---
+
+## Prérequis
+
+### Outils nécessaires
+
+```bash
+# Docker
+docker --version          # Version 20.10+
+docker-compose --version  # Version 2.0+
+
+# Kubernetes (optionnel - pour déploiement K8s)
+kubectl version --client  # Version 1.28+
+
+# Minikube (optionnel - pour cluster local)
+minikube version          # Version 1.31+
+```
+
+### Installation
+
+**macOS (Homebrew) :**
+```bash
+brew install docker docker-compose kubectl minikube
+```
+
+**Linux :**
+```bash
+# Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+
+# kubectl
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+
+# Minikube
+curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+sudo install minikube-linux-amd64 /usr/local/bin/minikube
+```
+
+---
+
+## 🐳 Déploiement avec Docker Compose
+
+### Structure du projet
+
+```
+docker-compose/
+├── CustomerService/         # Microservice Java/Spring Boot
+│   ├── src/
+│   ├── build.gradle
+│   └── Dockerfile
+├── RentalService/          # Microservice Java/Spring Boot
+│   ├── src/
+│   ├── build.gradle
+│   └── Dockerfile
+├── NameService/            # Microservice PHP
+│   ├── index.php
+│   └── Dockerfile
+├── docker-compose.yml      # Configuration Docker Compose
+├── docker-deployment.yml   # Configuration Kubernetes
+├── docker-service.yml      # Services Kubernetes
+└── ingress.yml             # Configuration Ingress
+```
+
+### 1. Construction et démarrage
+
+```bash
+# Construire les images et démarrer les services
+docker-compose up --build
+
+# En arrière-plan (mode détaché)
+docker-compose up -d --build
+```
+
+**Ce qui se passe :**
+1. Docker lit `docker-compose.yml`
+2. Construit les images pour chaque service
+3. Crée le réseau `microservices-network`
+4. Démarre les services dans l'ordre (selon `depends_on`)
+5. Expose les ports 8080, 8081, 8082
+
+### 2. Vérifier les services
+
+```bash
+# Lister les conteneurs
+docker-compose ps
+
+# Voir les logs
+docker-compose logs -f
+
+# Voir les logs d'un service spécifique
+docker-compose logs -f customer-service
+```
+
+### 3. Tester les endpoints
+
+**CustomerService (port 8081) :**
+```bash
+# Liste des clients
+curl http://localhost:8081/customers
+
+# Adresse d'un client
+curl http://localhost:8081/customers/Jean%20Dupont/address
+```
+
+**RentalService (port 8080) :**
+```bash
+# Liste des voitures
+curl http://localhost:8080/cars
+
+# Communication inter-services
+curl http://localhost:8080/customer/Jean%20Dupont
+```
+
+**NameService (port 8082) - PHP :**
+```bash
+# GET : Retourne le prénom
+curl http://localhost:8082/
+
+# POST : Envoyer un nom
+curl -X POST http://localhost:8082/ \
+  -H "Content-Type: application/json" \
+  -d '{"nom": "Jean"}'
+```
+
+### 4. Arrêter les services
+
+```bash
+# Arrêter (conteneurs conservés)
+docker-compose stop
+
+# Arrêter et supprimer
+docker-compose down
+
+# Arrêter et supprimer volumes
+docker-compose down -v
+```
+
+---
+
+## ☸️ Déploiement avec Kubernetes
+
+### Option 1 : Minikube (Cluster local)
+
+#### 1. Démarrer Minikube
+
+```bash
+# Démarrer minikube
+minikube start
+
+# Vérifier le statut
+minikube status
+
+# Obtenir l'IP de minikube
+minikube ip
+
+# Activer l'addon Ingress
+minikube addons enable ingress
+```
+
+#### 2. Configurer Docker pour Minikube
+
+```bash
+# Configurer Docker pour utiliser le daemon de minikube
+eval $(minikube docker-env)
+
+# Vérifier (vous devriez voir les images de minikube)
+docker images
+```
+
+#### 3. Construire les images
+
+```bash
+# Construire les images dans le contexte de minikube
+docker build -t docker-compose-customer-service:latest ./CustomerService
+docker build -t docker-compose-rental-service:latest ./RentalService
+docker build -t docker-compose-name-service:latest ./NameService
+
+# Vérifier que les images sont présentes
+minikube image ls | grep docker-compose
+```
+
+#### 4. Déployer sur Kubernetes
+
+```bash
+# Appliquer les deployments
+kubectl apply -f docker-deployment.yml
+
+# Appliquer les services
+kubectl apply -f docker-service.yml
+
+# Appliquer l'ingress
+kubectl apply -f ingress.yml
+
+# Vérifier le déploiement
+kubectl get deployments
+kubectl get services
+kubectl get pods
+kubectl get ingress
+```
+
+#### 5. Accéder aux services
+
+**Via Port-Forward :**
+```bash
+# Terminal 1
+kubectl port-forward service/customer-service 8081:8081
+
+# Terminal 2
+kubectl port-forward service/rental-service 8080:8080
+
+# Terminal 3
+kubectl port-forward service/name-service 8082:80
+```
+
+**Via Ingress (après activation) :**
+```bash
+# Obtenir l'IP de minikube
+MINIKUBE_IP=$(minikube ip)
+
+# Tester les endpoints
+curl http://$MINIKUBE_IP/customers
+curl http://$MINIKUBE_IP/rentals
+curl http://$MINIKUBE_IP/name
+```
+
+**Via Minikube Service :**
+```bash
+# Ouvrir dans le navigateur
+minikube service customer-service
+minikube service rental-service
+minikube service name-service
+```
+
+### Option 2 : Cluster Kubernetes existant
+
+Si vous avez accès à un cluster Kubernetes (GKE, EKS, AKS, etc.) :
+
+#### 1. Configurer kubectl
+
+```bash
+# Vérifier le contexte
+kubectl config current-context
+
+# Lister les contextes
+kubectl config get-contexts
+
+# Changer de contexte si nécessaire
+kubectl config use-context <nom-contexte>
+```
+
+#### 2. Push des images vers un registry
+
+```bash
+# Taguer les images
+docker tag docker-compose-customer-service:latest <registry>/customer-service:latest
+docker tag docker-compose-rental-service:latest <registry>/rental-service:latest
+docker tag docker-compose-name-service:latest <registry>/name-service:latest
+
+# Pousser vers le registry
+docker push <registry>/customer-service:latest
+docker push <registry>/rental-service:latest
+docker push <registry>/name-service:latest
+```
+
+#### 3. Mettre à jour les deployments
+
+Modifiez `docker-deployment.yml` pour utiliser les images du registry :
+```yaml
+image: <registry>/customer-service:latest
+imagePullPolicy: Always
+```
+
+#### 4. Déployer
+
+```bash
+kubectl apply -f docker-deployment.yml
+kubectl apply -f docker-service.yml
+kubectl apply -f ingress.yml
+```
+
+### Configuration Kubernetes détaillée
+
+#### Deployments
+
+Les fichiers `docker-deployment.yml` définissent :
+- **Replicas** : Nombre de copies de chaque service (1 par défaut)
+- **Resources** : Limites CPU/Mémoire
+- **Environment Variables** : Configuration des services
+- **Image Pull Policy** : `IfNotPresent` pour utiliser les images locales
+
+#### Services
+
+Les fichiers `docker-service.yml` définissent :
+- **Type** : `ClusterIP` (interne au cluster)
+- **Ports** : Mapping des ports
+- **Selectors** : Correspondance avec les pods via labels
+
+#### Ingress
+
+Le fichier `ingress.yml` configure :
+- **Host** : `localhost` (ou votre domaine)
+- **Paths** : Routes vers chaque service
+  - `/customers` → Customer Service
+  - `/rentals` → Rental Service
+  - `/name` → Name Service
+
+---
+
+## 🔧 Commandes essentielles
+
+### Docker Compose
+
+```bash
+# Démarrer
+docker-compose up -d
+
+# Arrêter
+docker-compose down
+
+# Reconstruire
+docker-compose build --no-cache
+docker-compose up -d --build
+
+# Logs
+docker-compose logs -f <service>
+
+# Exécuter une commande dans un conteneur
+docker-compose exec <service> bash
+```
+
+### Kubernetes
+
+```bash
+# Voir les ressources
+kubectl get pods
+kubectl get deployments
+kubectl get services
+kubectl get ingress
+
+# Voir les détails
+kubectl describe pod <pod-name>
+kubectl describe deployment <deployment-name>
+kubectl describe service <service-name>
+
+# Logs
+kubectl logs <pod-name>
+kubectl logs -f <pod-name>
+kubectl logs deployment/<deployment-name>
+
+# Exécuter une commande dans un pod
+kubectl exec -it <pod-name> -- /bin/bash
+
+# Port-forward
+kubectl port-forward service/<service-name> <local-port>:<pod-port>
+
+# Redémarrer un deployment
+kubectl rollout restart deployment/<deployment-name>
+
+# Voir les événements
+kubectl get events --sort-by='.lastTimestamp'
+```
+
+### Minikube
+
+   ```bash
+# Démarrer/Arrêter
+minikube start
+minikube stop
+
+# Status
+minikube status
+minikube ip
+
+# Addons
+minikube addons list
+minikube addons enable ingress
+minikube addons enable dashboard
+
+# Services
+minikube service <service-name>
+minikube service list
+
+# Dashboard
+minikube dashboard
+
+# Images
+minikube image ls
+```
 
 ---
 
 ## 🐛 Dépannage
 
-### Les services ne démarrent pas
+### Docker Compose
+
+**Les services ne démarrent pas :**
 ```bash
 # Vérifier les logs
 docker-compose logs
 
-# Vérifier que les ports ne sont pas déjà utilisés
+# Vérifier les ports
 lsof -i :8080
 lsof -i :8081
 lsof -i :8082
-```
 
-### Communication entre services impossible
-- Vérifiez que les services sont sur le même réseau
-- Utilisez le nom du service (pas `localhost`) pour les appels inter-services
-- Vérifiez la variable `CUSTOMER_SERVICE_URL` dans l'application
-
-### Reconstruire complètement
-```bash
-# Tout supprimer et reconstruire
+# Reconstruire depuis zéro
 docker-compose down -v
 docker-compose build --no-cache
-docker-compose up
+docker-compose up -d
 ```
 
----
+**Communication entre services impossible :**
+- Vérifier que les services sont sur le même réseau
+- Utiliser le nom du service (pas `localhost`) dans les URLs
+- Vérifier les variables d'environnement
 
-## 📖 Ressources supplémentaires
+### Kubernetes
 
-- [Documentation officielle Docker Compose](https://docs.docker.com/compose/)
-- [Référence du fichier docker-compose.yml](https://docs.docker.com/compose/compose-file/)
-- [Docker Networking](https://docs.docker.com/network/)
-
----
-
-## Arrêt du projet
-
+**Pods en `ImagePullBackOff` :**
 ```bash
-# Arrêter les services
-docker-compose down
+# Vérifier que l'image existe
+kubectl describe pod <pod-name>
 
-# Arrêter et supprimer les volumes
-docker-compose down -v
+# Pour minikube, vérifier que Docker est configuré
+eval $(minikube docker-env)
+docker images | grep docker-compose
+
+# Mettre à jour imagePullPolicy si nécessaire
+kubectl patch deployment <deployment-name> -p '{"spec":{"template":{"spec":{"containers":[{"name":"<container-name>","imagePullPolicy":"Never"}]}}}}'
 ```
+
+**Pods en `CrashLoopBackOff` :**
+```bash
+# Voir les logs
+kubectl logs <pod-name>
+
+# Voir les événements
+kubectl describe pod <pod-name>
+
+# Vérifier les ressources
+kubectl top pod <pod-name>
+```
+
+**Services non accessibles :**
+```bash
+# Vérifier que le service pointe vers les bons pods
+kubectl get endpoints <service-name>
+
+# Tester la connectivité depuis un pod
+kubectl run -it --rm debug --image=busybox --restart=Never -- nslookup <service-name>
+```
+
+**Ingress ne fonctionne pas :**
+```bash
+# Vérifier que l'Ingress Controller est installé
+kubectl get pods -n ingress-nginx
+
+# Vérifier l'Ingress
+kubectl describe ingress <ingress-name>
+
+# Voir les logs de l'Ingress Controller
+kubectl logs -n ingress-nginx -l app.kubernetes.io/component=controller
+```
+
+### Minikube
+
+**Minikube ne démarre pas :**
+```bash
+# Voir les logs
+minikube logs
+
+# Supprimer et recréer
+minikube delete
+minikube start
+
+# Vérifier les ressources
+minikube status
+```
+
+**Images non trouvées :**
+```bash
+# Vérifier le contexte Docker
+eval $(minikube docker-env)
+docker images
+
+# Reconstruire les images
+docker build -t <image-name> .
+```
+
+---
+
+## 📸 Screenshots suggérés
+
+### 1. Architecture et Structure
+- [ ] **Diagramme d'architecture** : Schéma montrant les 3 services et leur communication
+- [ ] **Structure des fichiers** : Arborescence du projet dans l'IDE
+- [ ] **Dockerfiles** : Capture d'écran des Dockerfiles de chaque service
+
+### 2. Docker Compose
+- [ ] **docker-compose.yml** : Vue complète du fichier de configuration
+- [ ] **docker-compose ps** : Liste des conteneurs en cours d'exécution
+- [ ] **docker-compose logs** : Logs des services
+- [ ] **docker images** : Liste des images Docker construites
+- [ ] **docker network ls** : Réseaux Docker créés
+
+### 3. Kubernetes - Vue d'ensemble
+- [ ] **kubectl get all** : Vue d'ensemble de toutes les ressources
+- [ ] **kubectl get pods** : Liste des pods avec leur statut
+- [ ] **kubectl get deployments** : Liste des deployments
+- [ ] **kubectl get services** : Liste des services avec leurs IPs
+- [ ] **kubectl get ingress** : Configuration de l'Ingress
+
+### 4. Kubernetes - Détails
+- [ ] **kubectl describe pod** : Détails d'un pod (événements, état, etc.)
+- [ ] **kubectl describe deployment** : Détails d'un deployment
+- [ ] **kubectl describe service** : Détails d'un service (endpoints, selector)
+- [ ] **kubectl describe ingress** : Configuration détaillée de l'Ingress
+
+### 5. Kubernetes - Logs et Monitoring
+- [ ] **kubectl logs** : Logs d'un pod spécifique
+- [ ] **kubectl top pods** : Utilisation CPU/Mémoire des pods
+- [ ] **kubectl get events** : Événements Kubernetes récents
+- [ ] **Minikube dashboard** : Interface web du dashboard Kubernetes
+
+### 6. Tests et Requêtes
+- [ ] **curl GET** : Test du CustomerService avec curl
+- [ ] **curl POST** : Test du NameService avec POST
+- [ ] **Communication inter-services** : Logs montrant l'appel entre services
+- [ ] **Réponse dans le navigateur** : Résultat affiché dans le navigateur
+
+### 7. Minikube
+- [ ] **minikube status** : Statut de minikube
+- [ ] **minikube ip** : Adresse IP de minikube
+- [ ] **minikube dashboard** : Capture du dashboard Kubernetes
+- [ ] **minikube service** : Service ouvert dans le navigateur
+
+### 8. Commandes et Configuration
+- [ ] **docker-compose.yml** : Configuration complète avec commentaires
+- [ ] **docker-deployment.yml** : Fichier de déploiement Kubernetes
+- [ ] **docker-service.yml** : Fichier de services Kubernetes
+- [ ] **ingress.yml** : Configuration Ingress
+
+### 9. Terminal et Shell
+- [ ] **docker-compose up** : Sortie de la commande de démarrage
+- [ ] **kubectl apply** : Application des ressources Kubernetes
+- [ ] **docker build** : Construction des images
+- [ ] **kubectl port-forward** : Redirection de port en cours
+
+### 10. Interface Graphique (si disponible)
+- [ ] **Docker Desktop** : Vue des conteneurs dans Docker Desktop
+- [ ] **Kubernetes Dashboard** : Vue d'ensemble dans le dashboard
+- [ ] **OrbStack** : Interface d'OrbStack si utilisé
+
+### 11. Dépannage
+- [ ] **kubectl describe pod (erreur)** : Pod en erreur avec détails
+- [ ] **docker-compose logs (erreur)** : Logs d'erreur
+- [ ] **kubectl get events** : Événements d'erreur
+
+### 12. Tests finaux
+- [ ] **Tous les services fonctionnels** : curl réussis sur tous les endpoints
+- [ ] **Communication inter-services** : Logs montrant la communication
+- [ ] **Health checks** : Vérification de santé des services
+
+---
+
+## 📚 Ressources supplémentaires
+
+### Documentation officielle
+- [Docker Documentation](https://docs.docker.com/)
+- [Docker Compose Documentation](https://docs.docker.com/compose/)
+- [Kubernetes Documentation](https://kubernetes.io/docs/)
+- [Minikube Documentation](https://minikube.sigs.k8s.io/docs/)
+
+### Tutoriels
+- [Kubernetes Basics](https://kubernetes.io/docs/tutorials/kubernetes-basics/)
+- [Docker Compose Tutorial](https://docs.docker.com/compose/gettingstarted/)
+
+### Outils
+- [Kubernetes Dashboard](https://kubernetes.io/docs/tasks/access-application-cluster/web-ui-dashboard/)
+- [k9s - Terminal UI](https://k9scli.io/)
+- [Lens - Kubernetes IDE](https://k8slens.dev/)
+
+---
+
+## 📝 Notes importantes
+
+### Variables d'environnement
+
+Les services Spring Boot utilisent des variables d'environnement pour la configuration :
+- `SPRING_APPLICATION_NAME` : Nom de l'application
+- `SERVER_PORT` : Port d'écoute
+- `CUSTOMER_SERVICE_URL` : URL du CustomerService (pour RentalService)
+
+### Communication inter-services
+
+Dans Kubernetes, les services communiquent via leurs noms DNS :
+- `customer-service:8081` (pas `localhost:8081`)
+- Le DNS Kubernetes résout automatiquement ces noms
+
+### Polyglossie
+
+Ce projet démontre l'utilisation de plusieurs langages :
+- **Java** : CustomerService et RentalService (Spring Boot)
+- **PHP** : NameService (Apache + PHP)
+
+---
+
+## 🎯 Objectifs pédagogiques
+
+Ce projet permet de comprendre :
+1. ✅ L'orchestration de conteneurs avec Docker Compose
+2. ✅ Le déploiement sur Kubernetes
+3. ✅ La communication inter-services
+4. ✅ La configuration de réseaux isolés
+5. ✅ L'utilisation d'Ingress pour exposer les services
+6. ✅ La gestion des ressources (CPU, Mémoire)
+7. ✅ Le debugging et le monitoring
+
+---
+
+## 📞 Support
+
+Pour toute question ou problème :
+1. Vérifier la section [Dépannage](#-dépannage)
+2. Consulter les logs : `docker-compose logs` ou `kubectl logs`
+3. Vérifier la documentation officielle
+
+---
+
+**Bon déploiement ! 🚀**
