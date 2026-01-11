@@ -1,0 +1,32 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: microservices-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - host: localhost
+    http:
+      paths:
+      - path: /customers
+        pathType: Prefix
+        backend:
+          service:
+            name: customer-service
+            port:
+              number: 8081
+      - path: /rentals
+        pathType: Prefix
+        backend:
+          service:
+            name: rental-service
+            port:
+              number: 8080
+      - path: /name
+        pathType: Prefix
+        backend:
+          service:
+            name: name-service
+            port:
+              number: 80
